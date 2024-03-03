@@ -17,7 +17,7 @@ module.exports = function(app) {
         return true;
       },
       {
-        target: "http://localhost:8022",
+        target: process.env.ETL_URL || "http://localhost:8022",
         changeOrigin: true,
         pathRewrite: { "^/etl": "" }
       }
