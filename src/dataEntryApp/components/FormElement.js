@@ -13,8 +13,9 @@ import MediaFormElement from "./MediaFormElement";
 import PhoneNumberFormElement from "./PhoneNumberFormElement";
 import LocationFormElement from "./LocationFormElement";
 import LandingSubjectFormElement from "./LandingSubjectFormElement";
-// import QuestionGroupFormElement from "./QuestionGroupFormElement";
-import { isNil } from "lodash";
+import QuestionGroupFormElement from "./QuestionGroupFormElement";
+import { RepeatableQuestionGroupElement } from "./RepeatableQuestionGroupElement";
+import { makeStyles } from "@material-ui/core/styles";
 
 const div = () => <div />;
 
@@ -37,9 +38,18 @@ const elements = {
   Id: TextFormElement,
   PhoneNumber: PhoneNumberFormElement,
   Subject: LandingSubjectFormElement,
-  Location: LocationFormElement
-  // QuestionGroup: QuestionGroupFormElement
+  Location: LocationFormElement,
+  QuestionGroup: QuestionGroupFormElement,
+  RepeatableQuestionGroup: RepeatableQuestionGroupElement
 };
+
+const useStyles = makeStyles(theme => ({
+  gridContainerStyle: {
+    borderWidth: "2px",
+    borderStyle: "inset",
+    padding: "5px"
+  }
+}));
 
 export const FormElement = ({
   children: formElement,
@@ -50,20 +60,19 @@ export const FormElement = ({
   uuid,
   feIndex,
   filteredFormElements,
-  isChildFormElement,
   ignoreLineBreak,
   isGrid,
-  updateObs
+  updateObs,
+  addNewQuestionGroup,
+  removeQuestionGroup
 }) => {
-  if (!isChildFormElement && !isNil(formElement.groupUuid)) return null;
+  const classes = useStyles();
   const type = formElement.getType();
   if (type === Concept.dataType.Id) {
-    formElement.keyValues = [
-      ...formElement.keyValues,
-      KeyValue.fromResource({ key: "editable", value: false })
-    ];
+    formElement.keyValues = [...formElement.keyValues, KeyValue.fromResource({ key: "editable", value: false })];
     formElement.mandatory = false;
   }
+
   const props = {
     formElement,
     value,
@@ -73,13 +82,15 @@ export const FormElement = ({
     uuid,
     filteredFormElements,
     isGrid,
-    updateObs
+    updateObs,
+    addNewQuestionGroup,
+    removeQuestionGroup
   };
   const Element = elements[type];
   return (
-    <div>
+    <div className={isGrid ? classes.gridContainerStyle : {}}>
       {!ignoreLineBreak && <LineBreak num={feIndex === 0 ? 0 : 2} />}
-      {/*this check can be removed later when DEA supports all the data types (Location is not supported yet)*/}
+      {/*this check can be removed later when DEA supports all the data types (Encounter and GroupAffiliation is not supported yet)*/}
       {Element && <Element {...props} />}
       {/* <LineBreak num={1} /> */}
     </div>

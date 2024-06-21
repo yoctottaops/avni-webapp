@@ -1,7 +1,4 @@
 import {
-  FormElementGroup,
-  Form,
-  FormElement,
   Concept,
   Program,
   ModelGeneral as General,
@@ -12,10 +9,15 @@ import {
   ProgramEnrolment,
   Individual,
   ConceptAnswer,
-  EncounterType
+  EncounterType,
+  KeyValue
 } from "openchs-models";
 
 import _ from "lodash";
+import WebFormElement from "../../common/model/WebFormElement";
+import WebFormElementGroup from "../../common/model/WebFormElementGroup";
+import WebForm from "../../common/model/WebForm";
+import moment from "moment";
 
 class EntityFactory {
   static createSafeProgram(name) {
@@ -32,8 +34,32 @@ class EntityFactory {
     return individual;
   }
 
+  static createSubject({
+    uuid = General.randomUUID(),
+    subjectType,
+    firstName,
+    lastName,
+    address,
+    registrationDate = moment().toDate(),
+    observations = [],
+    approvalStatuses = []
+  }) {
+    const subject = new Individual();
+    subject.uuid = uuid;
+    subject.subjectType = subjectType;
+    subject.firstName = firstName;
+    subject.lastName = lastName;
+    subject.name = firstName;
+    subject.lowestAddressLevel = address;
+    subject.registrationDate = registrationDate;
+    subject.observations = observations;
+    subject.approvalStatuses = approvalStatuses;
+    subject.setLatestEntityApprovalStatus(subject.latestEntityApprovalStatus);
+    return subject;
+  }
+
   static createSafeFormElementGroup(form) {
-    const formElementGroup = new FormElementGroup();
+    const formElementGroup = new WebFormElementGroup();
     formElementGroup.formElements = [];
     formElementGroup.form = form;
     form.addFormElementGroup(formElementGroup);
@@ -41,6 +67,14 @@ class EntityFactory {
   }
 
   static createFormElementGroup(name, displayOrder, form) {
+    return EntityFactory.createFormElementGroup2({
+      name: name,
+      displayOrder: displayOrder,
+      form: form
+    });
+  }
+
+  static createFormElementGroup2({ name, displayOrder, form }) {
     const formElementGroup = EntityFactory.createSafeFormElementGroup(form);
     formElementGroup.name = name;
     formElementGroup.displayOrder = displayOrder;
@@ -48,35 +82,75 @@ class EntityFactory {
   }
 
   static createForm(name) {
-    const form = new Form();
+    return EntityFactory.createForm2({ name });
+  }
+
+  static createForm2({ uuid, formType, name, formElementGroups = [] }) {
+    const form = new WebForm();
+    form.uuid = uuid;
+    form.formType = formType;
     form.name = name;
-    form.formElementGroups = [];
+    form.formElementGroups = formElementGroups;
     return form;
   }
 
   static createFormElement(name, mandatory, concept, displayOrder, type, formElementGroup, keyValues) {
-    const formElement = new FormElement();
-    formElement.uuid = General.randomUUID();
-    formElement.name = name;
-    formElement.mandatory = mandatory;
-    formElement.concept = concept;
-    formElement.displayOrder = displayOrder;
-    formElement.type = type;
-    formElement.formElementGroup = formElementGroup;
-    formElement.keyValues = keyValues;
-    return formElement;
+    return EntityFactory.createFormElement2({
+      name: name,
+      mandatory: mandatory,
+      concept: concept,
+      displayOrder: displayOrder,
+      type: type,
+      formElementGroup: formElementGroup,
+      keyValues: keyValues
+    });
+  }
+
+  static createFormElement2({
+    uuid = General.randomUUID(),
+    name = General.randomUUID(),
+    displayOrder,
+    concept,
+    formElementGroup = new WebFormElementGroup(),
+    mandatory = true,
+    keyValues = [],
+    type,
+    group
+  }) {
+    const entity = new WebFormElement();
+    entity.uuid = uuid;
+    entity.name = name;
+    entity.concept = concept;
+    entity.displayOrder = displayOrder;
+    entity.formElementGroup = formElementGroup;
+    entity.mandatory = mandatory;
+    entity.keyValues = keyValues;
+    formElementGroup.formElements = [...(formElementGroup.formElements || []), entity];
+    entity.type = type;
+    entity.groupUuid = _.get(group, "uuid");
+    entity.group = group;
+    return entity;
   }
 
   static addCodedAnswers(concept, answers) {
-    _.forEach(answers, answer =>
-      concept.addAnswer(EntityFactory.createConcept(answer, Concept.dataType.NA))
-    );
+    _.forEach(answers, answer => concept.addAnswer(EntityFactory.createConcept(answer, Concept.dataType.NA)));
   }
 
   static createConcept(name, dataType, uuid) {
     const concept = Concept.create(name, dataType);
     concept.uuid = uuid || General.randomUUID();
     if (dataType === Concept.dataType.Coded) concept.answers = [];
+    return concept;
+  }
+
+  static createConcept2({ uuid, dataType, name, answers = [], keyValues = [] } = { answers: [] }) {
+    const concept = new Concept();
+    concept.name = name;
+    concept.uuid = uuid;
+    concept.datatype = dataType;
+    concept.answers = [];
+    concept.keyValues = _.map(keyValues, KeyValue.fromResource);
+    answers.forEach(x => concept.addAnswer(x));
     return concept;
   }
 
@@ -107,12 +181,7 @@ class EntityFactory {
     return decision;
   }
 
-  static createProgramEncounter({
-    programEnrolment,
-    encounterDateTime = new Date(),
-    observations = [],
-    encounterType = undefined
-  }) {
+  static createProgramEncounter({ programEnrolment, encounterDateTime = new Date(), observations = [], encounterType = undefined }) {
     const programEncounter = ProgramEncounter.createEmptyInstance();
     const encounterTypeObj = EncounterType.create(encounterType);
     programEncounter.encounterDateTime = encounterDateTime;
@@ -122,14 +191,7 @@ class EntityFactory {
     return programEncounter;
   }
 
-  static createEnrolment({
-    enrolmentDateTime = new Date(),
-    uuid,
-    programExitDateTime,
-    program = null,
-    observations = [],
-    individual
-  }) {
+  static createEnrolment({ enrolmentDateTime = new Date(), uuid, programExitDateTime, program = null, observations = [], individual }) {
     const programEnrolment = ProgramEnrolment.createEmptyInstance();
     programEnrolment.enrolmentDateTime = enrolmentDateTime;
     programEnrolment.program = program;

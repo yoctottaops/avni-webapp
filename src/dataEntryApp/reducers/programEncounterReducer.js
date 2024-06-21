@@ -28,7 +28,9 @@ export const types = {
   SET_FILTERED_FORM_ELEMENTS: `${prefix}SET_FILTERED_FORM_ELEMENTS`,
   SET_ENCOUNTER_DATE: `${prefix}SET_ENCOUNTER_DATE`,
   GET_ELIGIBLE_PROGRAM_ENCOUNTERS: `${prefix}GET_ELIGIBLE_PROGRAM_ENCOUNTERS`,
-  SET_ELIGIBLE_PROGRAM_ENCOUNTERS: `${prefix}SET_ELIGIBLE_PROGRAM_ENCOUNTERS`
+  SET_ELIGIBLE_PROGRAM_ENCOUNTERS: `${prefix}SET_ELIGIBLE_PROGRAM_ENCOUNTERS`,
+  ADD_NEW_QG: `${prefix}ADD_NEW_QG`,
+  REMOVE_QG: `${prefix}REMOVE_QG`
 };
 
 export const setUnplanProgramEncounters = unplanProgramEncounters => ({
@@ -85,11 +87,23 @@ export const onLoadSuccess = (
   isFormEmpty
 });
 
-export const updateObs = (formElement, value, childFormElement) => ({
+export const updateObs = (formElement, value, childFormElement, questionGroupIndex) => ({
   type: types.UPDATE_OBS,
   formElement,
   value,
-  childFormElement
+  childFormElement,
+  questionGroupIndex
+});
+
+export const addNewQuestionGroup = formElement => ({
+  type: types.ADD_NEW_QG,
+  formElement
+});
+
+export const removeQuestionGroup = (formElement, questionGroupIndex) => ({
+  type: types.REMOVE_QG,
+  formElement,
+  questionGroupIndex
 });
 
 export const updateCancelObs = (formElement, value) => ({
@@ -257,10 +271,7 @@ export default (state = initialState, action) => {
     case types.SET_ENCOUNTER_DATE: {
       const programEncounter = state.programEncounter.cloneForEdit();
       programEncounter.encounterDateTime = action.encounterDate;
-      const validationResults = commonFormUtil.handleValidationResult(
-        programEncounter.validate(),
-        state.validationResults
-      );
+      const validationResults = commonFormUtil.handleValidationResult(programEncounter.validate(), state.validationResults);
 
       return {
         ...state,

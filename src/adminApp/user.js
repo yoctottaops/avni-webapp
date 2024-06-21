@@ -1,5 +1,5 @@
 import _, { filter, get, isEmpty, isFinite, isNil, map, some, startCase, sortBy } from "lodash";
-import React, { cloneElement, Fragment, useEffect, useState } from "react";
+import React, { cloneElement, Fragment, useContext, useEffect, useState } from "react";
 import {
   ArrayField,
   ArrayInput,
@@ -62,6 +62,7 @@ import ConceptService from "../common/service/ConceptService";
 import Select from "react-select";
 import ReactSelectHelper from "../common/utils/ReactSelectHelper";
 import IdpDetails from "../rootApp/security/IdpDetails";
+import OrgManagerContext from "./OrgManagerContext";
 
 export const UserCreate = ({ user, organisation, userInfo, ...props }) => (
   <Paper>
@@ -96,38 +97,45 @@ export const StringToLabelObject = ({ record, children, ...rest }) =>
     ...rest
   });
 
-export const UserList = ({ organisation, ...props }) => (
-  <List
-    {...props}
-    bulkActions={false}
-    filter={{ organisationId: organisation.id }}
-    filters={<UserFilter />}
-    title={`${organisation.name} Users`}
-  >
-    <Datagrid rowClick="show">
-      <TextField label="Login ID" source="username" />
-      <TextField source="name" label="Name of the Person" />
-      <ReferenceField
-        label="Catchment"
-        source="catchmentId"
-        reference="catchment"
-        linkType="show"
-        allowEmpty
-      >
-        <TextField source="name" />
-      </ReferenceField>
-      <TextField source="email" label="Email Address" />
-      <TextField source="phoneNumber" label="Phone Number" />
-      <UserGroupsDisplay style={{ maxWidth: "40em" }} label="User Groups" />
-      <FunctionField
-        label="Status"
-        render={user =>
-          user.voided === true ? "Deleted" : user.disabledInCognito === true ? "Disabled" : "Active"
-        }
-      />
-    </Datagrid>
-  </List>
-);
+export const UserList = ({ ...props }) => {
+  const { organisation } = useContext(OrgManagerContext);
+  return (
+    <List
+      {...props}
+      bulkActions={false}
+      filter={{ organisationId: organisation.id }}
+      filters={<UserFilter />}
+      title={`${organisation.name} Users`}
+    >
+      <Datagrid rowClick="show">
+        <TextField label="Login ID" source="username" />
+        <TextField source="name" label="Name of the Person" />
+        <ReferenceField
+          label="Catchment"
+          source="catchmentId"
+          reference="catchment"
+          linkType="show"
+          allowEmpty
+        >
+          <TextField source="name" />
+        </ReferenceField>
+        <TextField source="email" label="Email Address" />
+        <TextField source="phoneNumber" label="Phone Number" />
+        <UserGroupsDisplay style={{ maxWidth: "40em" }} label="User Groups" />
+        <FunctionField
+          label="Status"
+          render={user =>
+            user.voided === true
+              ? "Deleted"
+              : user.disabledInCognito === true
+              ? "Disabled"
+              : "Active"
+          }
+        />
+      </Datagrid>
+    </List>
+  );
+};
 
 const CustomShowActions = ({ hasEditUserPrivilege, basePath, data, resource }) => {
   return (
@@ -159,7 +167,7 @@ const formatLang = lang =>
     .map(lang => lang.name)
     .join("");
 
-const SubjectTypeSyncAttributeShow = ({ subjectType, ...props }) => (
+const SubjectTypeSyncAttributeShow = ({ subjectType, syncConceptValueMap, ...props }) => (
   <div style={{ marginTop: 8, padding: 10, border: "3px solid rgba(0, 0, 0, 0.05)" }}>
     <Typography gutterBottom variant={"subtitle1"}>{`Sync settings for Subject Type: ${
       subjectType.name
@@ -168,6 +176,7 @@ const SubjectTypeSyncAttributeShow = ({ subjectType, ...props }) => (
       <ConceptSyncAttributeShow
         subjectType={subjectType}
         syncAttributeName={"syncAttribute1"}
+        syncConceptValueMap={syncConceptValueMap}
         {...props}
       />
     )}
@@ -175,39 +184,34 @@ const SubjectTypeSyncAttributeShow = ({ subjectType, ...props }) => (
       <ConceptSyncAttributeShow
         subjectType={subjectType}
         syncAttributeName={"syncAttribute2"}
+        syncConceptValueMap={syncConceptValueMap}
         {...props}
       />
     )}
   </div>
 );
 
-const ConceptSyncAttributeShow = ({ subjectType, syncAttributeName, ...props }) => {
+const ConceptSyncAttributeShow = ({
+  subjectType,
+  syncConceptValueMap,
+  syncAttributeName,
+  ...props
+}) => {
   const syncSettings = get(props.record, ["syncSettings", subjectType.name], {});
   const conceptUUID = get(syncSettings, [syncAttributeName]);
   if (isEmpty(conceptUUID)) return null;
 
-  const [syncConceptValueMap, setSyncConceptValueMap] = useState(new Map());
-  useEffect(() => {
-    let isMounted = true;
-    const newValMap = new Map();
-
-    ConceptService.getAnswerConcepts(conceptUUID).then(content => {
-      content.forEach(val => newValMap.set(val.id, val.name));
-      if (isMounted) {
-        setSyncConceptValueMap(newValMap);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [conceptUUID]);
   return (
     <div>
       <span style={{ color: "rgba(0, 0, 0, 0.54)", fontSize: "12px", marginRight: 10 }}>
         {startCase(syncAttributeName)}
       </span>
       {map(get(syncSettings, `${syncAttributeName}Values`, []), value => (
-        <Chip style={{ margin: "0.2em" }} label={syncConceptValueMap.get(value)} key={value} />
+        <Chip
+          style={{ margin: "0.2em" }}
+          label={syncConceptValueMap.get(value) || value}
+          key={value}
+        />
       ))}
     </div>
   );
@@ -250,7 +254,11 @@ export const UserDetail = ({ user, hasEditUserPrivilege, ...props }) => {
         />
         <LineBreak />
         {map(syncAttributesData.subjectTypes, st => (
-          <SubjectTypeSyncAttributeShow subjectType={st} key={get(st, "name")} />
+          <SubjectTypeSyncAttributeShow
+            subjectType={st}
+            key={get(st, "name")}
+            syncConceptValueMap={syncAttributesData.syncConceptValueMap}
+          />
         ))}
         <FunctionField
           label="Preferred Language"
@@ -442,8 +450,34 @@ const ConceptSyncAttribute = ({ subjectType, syncAttributeName, edit, ...props }
 
 const initialSyncAttributes = { subjectTypes: [] };
 
+const getSyncConceptValueMap = async sortedSubjectTypes => {
+  const syncConceptValueMap = new Map();
+  const codedConceptUUIDSet = new Set();
+  sortedSubjectTypes.forEach(subject => {
+    const syncAttribute1UUID =
+      subject.syncAttribute1 &&
+      subject.syncAttribute1.dataType === "Coded" &&
+      subject.syncAttribute1.id;
+    const syncAttribute2UUID =
+      subject.syncAttribute2 &&
+      subject.syncAttribute2.dataType === "Coded" &&
+      subject.syncAttribute2.id;
+    syncAttribute1UUID && codedConceptUUIDSet.add(syncAttribute1UUID);
+    syncAttribute2UUID && codedConceptUUIDSet.add(syncAttribute2UUID);
+  });
+
+  for (const conceptUUID of codedConceptUUIDSet) {
+    const content = await ConceptService.getAnswerConcepts(conceptUUID);
+    content.forEach(val => {
+      syncConceptValueMap.set(val.id, val.name);
+    });
+  }
+  return syncConceptValueMap;
+};
+
 function fetchSyncAttributeData(setSyncAttributesData) {
   useEffect(() => {
+    let isMounted = true;
     http.get("/subjectType/syncAttributesData").then(res => {
       const {
         subjectTypes,
@@ -451,12 +485,21 @@ function fetchSyncAttributeData(setSyncAttributesData) {
         anySubjectTypeSyncByLocation
       } = res.data;
       const sortedSubjectTypes = sortBy(subjectTypes, "id");
-      setSyncAttributesData({
-        subjectTypes: sortedSubjectTypes,
-        anySubjectTypeDirectlyAssignable,
-        anySubjectTypeSyncByLocation
+
+      getSyncConceptValueMap(sortedSubjectTypes).then(syncConceptValueMap => {
+        if (isMounted) {
+          setSyncAttributesData({
+            subjectTypes: sortedSubjectTypes,
+            anySubjectTypeDirectlyAssignable,
+            anySubjectTypeSyncByLocation,
+            syncConceptValueMap
+          });
+        }
       });
     });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 }
 

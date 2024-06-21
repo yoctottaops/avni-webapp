@@ -16,8 +16,6 @@ const useStyles = makeStyles(theme => ({
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: "10px",
-    border: "1px solid rgba(0, 0, 0, 0.12)",
     width: "50%"
   },
   gridLabelStyle: {
@@ -33,7 +31,7 @@ export default ({ formElement: fe, value, update, validationResults, uuid, isGri
   const { t } = useTranslation();
   const validationResult = find(
     validationResults,
-    validationResult => validationResult.formIdentifier === uuid
+    ({ formIdentifier, questionGroupIndex }) => formIdentifier === uuid && questionGroupIndex === fe.questionGroupIndex
   );
 
   const error = () => {
@@ -46,7 +44,7 @@ export default ({ formElement: fe, value, update, validationResults, uuid, isGri
     return false;
   };
 
-  const textColor = error() ? Colors.ValidationError : Colors.DefaultPrimary;
+  const textColor = error() ? Colors.ValidationError : fe.editable ? Colors.DefaultPrimary : Colors.DefaultDisabled;
 
   const rangeText = (lowNormal, hiNormal) => {
     let rangeText = null;
@@ -64,11 +62,7 @@ export default ({ formElement: fe, value, update, validationResults, uuid, isGri
 
   return (
     <div className={isGrid ? classes.gridContainerStyle : classes.containerStyle}>
-      <Typography
-        variant="body1"
-        gutterBottom={!isGrid}
-        className={isGrid ? classes.gridLabelStyle : classes.labelStyle}
-      >
+      <Typography variant="body1" gutterBottom={!isGrid} className={isGrid ? classes.gridLabelStyle : classes.labelStyle}>
         {t(fe.name)}
         {fe.mandatory ? "*" : ""}
         {!isNil(fe.concept.unit) && !isEmpty(fe.concept.unit.trim()) ? ` (${fe.concept.unit})` : ""}

@@ -4,15 +4,14 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import SubjectSearchService from "../services/SubjectSearchService";
 import { subjectService } from "../services/SubjectService";
-import { find, first, isEmpty, xor } from "lodash";
+import { debounce, find, first, isEmpty, xor } from "lodash";
 import { FormHelperText } from "@material-ui/core";
 import { Individual } from "avni-models";
+import { Concept } from "openchs-models";
 
 const SubjectFormElement = props => {
   const { t } = useTranslation();
-  const subjectTypeUuid = JSON.parse(
-    props.formElement.concept.keyValues.find(keyValue => keyValue.key === "subjectTypeUUID").value
-  );
+  const subjectTypeUuid = props.formElement.concept.recordValueByKey(Concept.keys.subjectTypeUUID);
   const isMultiSelect = props.formElement.type === "MultiSelect";
   const isMandatory = props.formElement.mandatory;
   const fieldLabel = props.formElement.name;
@@ -43,13 +42,11 @@ const SubjectFormElement = props => {
 
   const validationResult = find(
     props.validationResults,
-    validationResult => validationResult.formIdentifier === props.uuid
+    ({ formIdentifier, questionGroupIndex }) => formIdentifier === props.uuid && questionGroupIndex === props.formElement.questionGroupIndex
   );
 
   const onSelectedSubjectsChange = event => {
-    const toggledSubject = isMultiSelect
-      ? first(xor(event, selectedSubjects))
-      : event || selectedSubjects;
+    const toggledSubject = isMultiSelect ? first(xor(event, selectedSubjects)) : event || selectedSubjects;
     if (!isEmpty(toggledSubject)) {
       //empty check required as backspace on empty control triggers an onChange
       const changedSubjectUuid = toggledSubject.value.uuid;
@@ -59,36 +56,36 @@ const SubjectFormElement = props => {
     }
   };
 
-  const loadSubjects = async inputValue => {
-    const searchResults = await SubjectSearchService.search({
+  const loadSubjects = (inputValue, callback) => {
+    SubjectSearchService.search({
       name: inputValue,
       subjectType: subjectTypeUuid
-    });
-
-    const filteredSubjects =
-      isMultiSelect && selectedSubjects
-        ? searchResults.listOfRecords.filter(
-            subject =>
-              selectedSubjects
-                .map(selectedSubject => selectedSubject.value.uuid)
-                .indexOf(subject.uuid) === -1
+    })
+      .then(searchResults =>
+        searchResults.listOfRecords
+          .filter(subject =>
+            isMultiSelect && selectedSubjects
+              ? selectedSubjects.map(selectedSubject => selectedSubject.value.uuid).indexOf(subject.uuid) === -1
+              : true
           )
-        : searchResults.listOfRecords;
-
-    return filteredSubjects.map(subject => ({
-      label: constructSubjectLabel(subject, true),
-      value: {
-        id: subject.id,
-        uuid: subject.uuid,
-        firstName: subject.firstName,
-        middleName: subject.middleName,
-        lastName: subject.lastName,
-        fullName: subject.fullName,
-        profilePicture: subject.profilePicture,
-        addressLevel: subject.addressLevel
-      }
-    }));
+          .map(subject => ({
+            label: constructSubjectLabel(subject, true),
+            value: {
+              id: subject.id,
+              uuid: subject.uuid,
+              firstName: subject.firstName,
+              middleName: subject.middleName,
+              lastName: subject.lastName,
+              fullName: subject.fullName,
+              profilePicture: subject.profilePicture,
+              addressLevel: subject.addressLevel
+            }
+          }))
+      )
+      .then(callback);
   };
+
+  const debouncedLoadSubjects = debounce(loadSubjects, 500);
 
   const placeholder = "Type to search...";
   const noResults = "No results";
@@ -102,7 +99,7 @@ const SubjectFormElement = props => {
         <Grid item xs={10}>
           <AsyncSelect
             cacheOptions
-            loadOptions={loadSubjects}
+            loadOptions={debouncedLoadSubjects}
             name={fieldLabel}
             isMulti={isMultiSelect}
             isSearchable
@@ -118,9 +115,7 @@ const SubjectFormElement = props => {
           />
         </Grid>
       </Grid>
-      <FormHelperText>
-        {validationResult && t(validationResult.messageKey, validationResult.extra)}
-      </FormHelperText>
+      <FormHelperText error={true}>{validationResult && t(validationResult.messageKey, validationResult.extra)}</FormHelperText>
     </>
   );
 };

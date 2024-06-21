@@ -27,7 +27,9 @@ export const types = {
   SET_ENCOUNTER_DATE: `${prefix}SET_ENCOUNTER_DATE`,
   SET_FILTERED_FORM_ELEMENTS: `${prefix}SET_FILTERED_FORM_ELEMENTS`,
   GET_ELIGIBLE_ENCOUNTERS: `${prefix}GET_ELIGIBLE_ENCOUNTERS`,
-  SET_ELIGIBLE_ENCOUNTERS: `${prefix}SET_ELIGIBLE_ENCOUNTERS`
+  SET_ELIGIBLE_ENCOUNTERS: `${prefix}SET_ELIGIBLE_ENCOUNTERS`,
+  ADD_NEW_QG: `${prefix}ADD_NEW_QG`,
+  REMOVE_QG: `${prefix}REMOVE_QG`
 };
 
 export const setEncounterFormMappings = encounterFormMappings => ({
@@ -50,15 +52,7 @@ export const setEligibleEncounters = eligibleEncounters => ({
   eligibleEncounters
 });
 
-export const onLoadSuccess = (
-  encounter,
-  encounterForm,
-  formElementGroup,
-  filteredFormElements,
-  onSummaryPage,
-  wizard,
-  isFormEmpty
-) => ({
+export const onLoadSuccess = (encounter, encounterForm, formElementGroup, filteredFormElements, onSummaryPage, wizard, isFormEmpty) => ({
   type: types.ON_LOAD_SUCCESS,
   encounter,
   encounterForm,
@@ -79,11 +73,23 @@ export const setEncounter = encounter => ({
   encounter
 });
 
-export const updateObs = (formElement, value, childFormElement) => ({
+export const updateObs = (formElement, value, childFormElement, questionGroupIndex) => ({
   type: types.UPDATE_OBS,
   formElement,
   value,
-  childFormElement
+  childFormElement,
+  questionGroupIndex
+});
+
+export const addNewQuestionGroup = formElement => ({
+  type: types.ADD_NEW_QG,
+  formElement
+});
+
+export const removeQuestionGroup = (formElement, questionGroupIndex) => ({
+  type: types.REMOVE_QG,
+  formElement,
+  questionGroupIndex
 });
 
 export const saveEncounter = isCancel => ({
@@ -252,10 +258,7 @@ export default (state = initialState, action) => {
     case types.SET_ENCOUNTER_DATE: {
       const encounter = state.encounter.cloneForEdit();
       encounter.encounterDateTime = action.encounterDate;
-      const validationResults = commonFormUtil.handleValidationResult(
-        encounter.validate(),
-        state.validationResults
-      );
+      const validationResults = commonFormUtil.handleValidationResult(encounter.validate(), state.validationResults);
 
       return {
         ...state,

@@ -18,11 +18,12 @@ import {
   ProgramEnrolment,
   QuestionGroup
 } from "avni-models";
-import { isNil, map } from "lodash";
+import _, { isNil, map } from "lodash";
 import { conceptService } from "dataEntryApp/services/ConceptService";
 import { subjectService } from "../dataEntryApp/services/SubjectService";
 import { addressLevelService } from "../dataEntryApp/services/AddressLevelService";
 import { mapSubjectType } from "./adapters";
+import { RepeatableQuestionGroup } from "openchs-models";
 
 export const mapIndividual = individualDetails => {
   const individual = General.assignFields(
@@ -49,12 +50,12 @@ export const mapIndividual = individualDetails => {
   return individual;
 };
 
-export const mapObservations = observations => {
+export function mapObservations(observations) {
   if (observations)
     return observations.map(observation => {
       return mapObservation(observation);
     });
-};
+}
 
 function getAnswers(answersJson) {
   return map(answersJson, answerJson => {
@@ -83,7 +84,11 @@ export const mapConcept = conceptJson => {
   return concept;
 };
 
-export const mapObservation = observationJson => {
+function looksLikeRepeatableQuestionGroupValue(value) {
+  return _.isArrayLike(value) && value.length > 0 && _.isArrayLike(value[0]);
+}
+
+export function mapObservation(observationJson) {
   if (observationJson) {
     const observation = new Observation();
     const concept = mapConcept(observationJson.concept);
@@ -95,8 +100,18 @@ export const mapObservation = observationJson => {
     observationJson.location && addressLevelService.addAddressLevel(observationJson.location);
     let value;
     if (concept.isQuestionGroup()) {
-      const questionGroupObservations = mapObservations(observationJson.value);
-      value = new QuestionGroup(questionGroupObservations);
+      if (looksLikeRepeatableQuestionGroupValue(observationJson.value)) {
+        //RepeatableQuestionGroup
+        const repeatableQuestionGroupObservations = _.map(
+          observationJson.value,
+          qgObs => new QuestionGroup(mapObservations(qgObs))
+        );
+        value = new RepeatableQuestionGroup(repeatableQuestionGroupObservations);
+      } else {
+        //QuestionGroup
+        const questionGroupObservations = mapObservations(observationJson.value);
+        value = new QuestionGroup(questionGroupObservations);
+      }
     } else {
       value = concept.getValueWrapperFor(observationJson.value);
     }
@@ -104,7 +119,7 @@ export const mapObservation = observationJson => {
     observation.valueJSON = value;
     return observation;
   }
-};
+}
 
 //subject Dashboard profile Tab
 export const mapProfile = subjectProfile => {
@@ -118,7 +133,7 @@ export const mapProfile = subjectProfile => {
   }
 };
 
-export const mapProgramEnrolment = (json, subject) => {
+export function mapProgramEnrolment(json, subject) {
   const programEnrolment = new ProgramEnrolment();
   programEnrolment.uuid = json.uuid;
   if (json.enrolmentDateTime) programEnrolment.enrolmentDateTime = new Date(json.enrolmentDateTime);
@@ -138,7 +153,7 @@ export const mapProgramEnrolment = (json, subject) => {
     );
   }
   return programEnrolment;
-};
+}
 
 export const mapRelationships = relationshipList => {
   if (relationshipList) {
@@ -290,7 +305,7 @@ export const mapEncounterType = encounterType => {
   return General.assignFields(encounterType, new EncounterType(), ["name", "uuid"]);
 };
 
-// general tab subject Dashbord
+// general tab subject Dashboard
 export const mapGeneral = subjectGeneral => {
   if (subjectGeneral && subjectGeneral.encounters) {
     return subjectGeneral.encounters.map(encounters => {
